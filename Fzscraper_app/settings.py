@@ -13,7 +13,13 @@ SECRET_KEY = '3fysodf=@u+c8a=9#hq#&4zo1#o_m!ba+dgquar7+ci4u1_8ls'
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [
+    'buzzstezz-api01.onrender.com',  # Add this line
+    'localhost',
+    '127.0.0.1',
+    # Any other domains you want to allow
+]
+
 
 
 # Application definition
