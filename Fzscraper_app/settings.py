@@ -27,6 +27,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'scraper',
+    'corsheaders',
     'django_user_agents',
 
 ]
@@ -36,6 +37,8 @@ MIDDLEWARE = [
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
+    'django.middleware.common.CommonMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -44,6 +47,8 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = 'Fzscraper_app.urls'
+CORS_ALLOW_ALL_ORIGINS = True
+
 
 TEMPLATES = [
     {

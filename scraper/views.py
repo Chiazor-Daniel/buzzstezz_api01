@@ -112,11 +112,11 @@ def home (request):
         perf_links = []
         for i in new:
             perf_links.append('https://fzmovies.net/'+i.replace(" ","%20"))
-            
 
 
         mainbox2 = soup.find_all("div", {"class": "mainbox2"})
         
+        print(perf_links)
         
         if len(mainbox2) == 4:
             wanted_mainbox2 = mainbox2[3]
@@ -146,98 +146,66 @@ def home (request):
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-import urllib
-
 def generate_download_link(request):
+    # Assume br (browser) is already initialized
     download_url = request.POST.get('movie_to_download')
     detail = urllib.parse.unquote(str(download_url))
-
-    #for opening detail page
+    
+    # Open the detail page
     r = br.open(detail)
-
-    #to read and save the page
-    orders_html = br.response().read()
-
-    soup = BeautifulSoup(orders_html,'html.parser')
-
-    #filltering ul
-    divs = soup.find_all("ul", {"class": "moviesfiles"})
-
-    #initializing an empty array
-    li = []
-
-    #  this for loop is for filltering all a tags in the ul tag fillltered before and appending the results to a new array
-    for d in divs:
-        ul = d.find_all('a', href=True)
-        for u in ul:
-            li.append(u['href'])
-
-    #initializing a new array
-    down_page = []
-
-
-    #this for loop is to remove the media.php in the link array and form the download page link
-    for i in li:
-        if 'mediainfo.php' in i:
-            del i
-        else:
-            down_page.append('fzmovies.net/'+str(i))
-
-    #raw url for download page1
-    down_conf = down_page[0]
-    #action to open url for downoad page 1, with http appended to it
-    r = br.open('https://'+down_conf)
-
-    orders_html = br.response().read()
-
-    soup = BeautifulSoup(orders_html,'html.parser')
-
-    divs = soup.find_all("a", {"id": "downloadlink"})
-
-    nexts = []
-    for d in divs:
-        nexts.append(d['href'])
-        maybe = d['href']
-        down_page_2 = 'https://fzmovies.net/'+maybe
-
-
-    ######Entering the last Download page#####
-
-    #opening the page
+    
+    # Read and parse the page
+    orders_html = r.read()
+    soup = BeautifulSoup(orders_html, 'html.parser')
+    
+    # Find all ul elements with class "moviesfiles"
+    moviesfiles_uls = soup.find_all("ul", {"class": "moviesfiles"})
+    
+    # Initialize an empty list for the 720p link
+    download_link_720p = []
+    
+    # Search for the 720p link
+    for ul in moviesfiles_uls:
+        links = ul.find_all('a', href=True)
+        for link in links:
+            if '720p' in link.text:
+                full_url = 'https://fzmovies.net/' + link['href']
+                download_link_720p.append(full_url)
+                break  # Found the 720p link, stop searching
+        if download_link_720p:
+            break  # Exit the outer loop if we found the link
+    
+    if not download_link_720p:
+        return render(request, 'error.html', {'message': 'No 720p download link found'})
+    
+    # Open the 720p download page
+    r = br.open(download_link_720p[0])
+    orders_html = r.read()
+    soup = BeautifulSoup(orders_html, 'html.parser')
+    
+    # Find the download link on this page
+    download_link = soup.find("a", {"id": "downloadlink"})
+    if not download_link:
+        return render(request, 'error.html', {'message': 'Download link not found on the page'})
+    
+    # Construct the URL for the final download page
+    down_page_2 = 'https://fzmovies.net/' + download_link['href']
+    
+    # Open the final download page
     r = br.open(down_page_2)
-
-    #reading the page
-    orders_html = br.response().read()
-
-
-    soup = BeautifulSoup(orders_html,'html.parser')
-
-    down_link = soup.find_all("input", {"name": "download1"})
-    real_links = []
-
-    #download links generated
-
-
-    for i in down_link:
-        real_links.append(i['value'])
-
-    data = real_links
-
-    return render(request, 'generated.html', {'data':data} )
-
+    orders_html = r.read()
+    soup = BeautifulSoup(orders_html, 'html.parser')
+    
+    # Find the final download link
+    down_link = soup.find("input", {"name": "download1"})
+    if not down_link:
+        return render(request, 'error.html', {'message': 'Final download link not found'})
+    
+    # Get the value of the download link
+    final_link = down_link['value']
+    
+    # Return the final download link
+    return render(request, 'generated.html', {'data': [final_link]})
 
 
 
