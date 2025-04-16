@@ -20,108 +20,67 @@ from django.http import HttpResponse
 
 
 #Exceptions error 500 , 503 , Backend Error
-@api_view(['GET', 'POST'])
-def home (request):
-    x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
-    if x_forwarded_for:
-        ip = x_forwarded_for.split(',')[0]
-    else:
-        ip = request.META.get('REMOTE_ADDR')
-    
-    device_type = ""
-    browser_type = ""
-    browser_version = ""
-    os_type = ""
-    os_version = ""
-    if request.user_agent.is_mobile:
-        device_type = "Mobile"
-    if request.user_agent.is_tablet:
-        device_type = "Tablet"
-    if request.user_agent.is_pc:
-        device_type = "PC"
-    
-    browser_type = request.user_agent.browser.family
-    browser_version = request.user_agent.browser.version_string
-    os_type = request.user_agent.os.family
-    os_version = request.user_agent.os.version_string
-    user_device, created = UserDevice.objects.get_or_create(
-        ip = ip,
-        device_type = device_type,
-        browser_type = browser_type,
-        browser_version = browser_version,
-        os_type = os_type,
-        os_version = os_version,
-    )
-    all_texts = ''
-    perf_links = ''
-
+@api_view(['POST'])
+def search_and_get_links(request):
     searchword = request.data.get('searchword')
+    if not searchword:
+        return Response({"message": "Error", "data": "Searchword is required"}, status=status.HTTP_400_BAD_REQUEST)
 
-    search_term = Search.objects.create(
-        user_device = user_device,
-        movie_name = searchword
-    )
+    try:
+        # First, search for the movie
+        br.open("https://www.fzmovies.net/")
+        br.select_form(nr=0)
+        br.form['searchname'] = str(searchword)
+        br.submit()
 
-    br.open("https://www.fzmovies.net/")
-    #initialize form i think
-    br.select_form(nr=0)
-    #this picks the forms search valur and fills it in Fzmovies search form
-    br.form['searchname'] = str(searchword)
+        # Get search results
+        orders_html = br.response().read()
+        soup = BeautifulSoup(orders_html, 'html.parser')
+        divs = soup.find_all("div", {"class": "mainbox"})
 
-    #submitting form
-    br.submit()
+        if not divs:
+            return Response({"message": "Error", "data": "No results found"}, status=status.HTTP_404_NOT_FOUND)
 
-    # saves page source
-    orders_html = br.response().read()
+        # Get the first movie link
+        first_movie_div = divs[0]
+        movie_links = first_movie_div.find_all('a', href=True)
+        if not movie_links:
+            return Response({"message": "Error", "data": "No movie links found"}, status=status.HTTP_404_NOT_FOUND)
 
-    #initializing bs4 for scraping
-    soup = BeautifulSoup(orders_html,'html.parser')
+        movie_url = 'https://fzmovies.net/' + movie_links[0]['href']
 
+        # Get download links from the movie page
+        br.open(movie_url)
+        orders_html = br.response().read()
+        soup = BeautifulSoup(orders_html, 'html.parser')
 
-    #picking the closest div to the link we want to pick by class name
-    divs = soup.find_all("div", {"class": "mainbox"})
+        # Find the moviesfiles section
+        moviesfiles_uls = soup.find_all("ul", {"class": "moviesfiles"})
+        download_links = []
 
-    #this empty array would be used to store all thhe texts in that mainbox div
-    all_texts = []
+        # Search for 720p links
+        for ul in moviesfiles_uls:
+            links = ul.find_all('a', href=True)
+            for link in links:
+                if '720p' in link.text.lower():
+                    download_links.append('https://fzmovies.net/' + link['href'])
+                    break
+            if download_links:
+                break
 
-    #this empty array would be used to store all the a tags in the mainbox div
-    links = []
+        if not download_links:
+            return Response({"message": "Error", "data": "No download links found"}, status=status.HTTP_404_NOT_FOUND)
 
-    #iterating through all available divs produces by the search
-    for div in divs:
+        return Response({
+            "message": "Success!",
+            "data": {
+                "movie_url": movie_url,
+                "download_links": download_links
+            }
+        }, status=status.HTTP_200_OK)
 
-        #reavealing the href property in other get links
-        a_tags = div.find_all('a', href=True)
-
-        #this for loop appends all the links in mainbox div into the links array
-        for row in a_tags:
-            links.append(row['href'])
-        #this for loop appends all the texts in mainbox div into the all_texts array
-        for texts in divs:
-            all_texts.append(texts.find_all(text=True))
-
-    '''
-    there would be two of each link in the links array so this eliminates all double links in the list
-    '''
-    all_links = list(dict.fromkeys(links))
-
-    '''
-    there would be some unwanted strings in the links array called movie tags
-    so we initialized an empty array to delete them and save the main links to a perfect array called perf_array
-    '''
-
-    perf_links = []
-
-
-    #this deletes the empty strings and any movie tag link in the list of links and appends the remaining to a new array
-    for i in all_links:
-        if i=='' or 'movietags' in i:
-            del i
-        else:
-            perf_links.append(i)
-
-    #the zip function is used to loop over each list and make thier values appear right ontop of each other and data would be used as a key in the template
-    return Response({"message": "Success!", "data": zip(all_texts, perf_links)}, status=status.HTTP_200_OK )
+    except Exception as e:
+        return Response({"message": "Error", "data": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['POST'])
